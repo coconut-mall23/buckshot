@@ -1,0 +1,184 @@
+<html><head>
+<base href="https://cdn.jsdelivr.net/gh/Reeyuki/yukios-games@main/html/">
+<script>
+(function() {
+  const ROOT_BASE = "https://cdn.jsdelivr.net/gh/Reeyuki/yukios-games@main/";
+  const ASSET_DIR_BASE = "https://cdn.jsdelivr.net/gh/Reeyuki/yukios-games@main/html/";
+  const JSDELIVR_GH_BASE = "https://cdn.jsdelivr.net/gh/";
+  const STATICALLY_GH_BASE = "https://cdn.jsdelivr.net/gh/";
+
+  function resolve(url) {
+    if (typeof url !== 'string' || !url) return url;
+    if (url.startsWith('blob:') || url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) return url;
+    let p = url;
+    if (p.startsWith('/')) {
+      p = p.slice(1);
+      if (p.startsWith('next/')) return ASSET_DIR_BASE + p;
+      if (p.startsWith('static/games/')) p = p.replace('static/games/', '');
+      return ROOT_BASE + p;
+    }
+    return ASSET_DIR_BASE + url;
+  }
+
+  function postNavigate(url) {
+    try { parent.postMessage({ __yukios: 'navigate', url }, '*'); } catch {}
+  }
+
+  const createElement = document.createElement.bind(document);
+  document.createElement = function(tag) {
+    const el = createElement(tag);
+    const tagName = tag.toLowerCase();
+    if (tagName === 'script') {
+      let src = '';
+      Object.defineProperty(el, 'src', {
+        get() { return src; },
+        set(val) {
+          src = resolve(val);
+        },
+        configurable: true
+      });
+    } else if (tagName === 'iframe' || tagName === 'frame') {
+      Object.defineProperty(el, 'src', {
+        get() { return el.getAttribute('src'); },
+        set(val) { el.setAttribute('src', resolve(val)); },
+        configurable: true
+      });
+    }
+    return el;
+  };
+
+  const setAttribute = Element.prototype.setAttribute;
+  Element.prototype.setAttribute = function(name, value) {
+    const tagName = this.tagName.toLowerCase();
+    const attrName = name.toLowerCase();
+    if ((tagName === 'iframe' || tagName === 'frame' || tagName === 'script' || tagName === 'img') && attrName === 'src') {
+      value = resolve(value);
+    } else if ((tagName === 'link' || tagName === 'a') && attrName === 'href') {
+      value = resolve(value);
+    }
+    return setAttribute.call(this, name, value);
+  };
+
+  document.addEventListener('click', function(e) {
+    const a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a) return;
+    const rawHref = a.getAttribute('href');
+    if (!rawHref || rawHref[0] === '#' || /^javascript:/i.test(rawHref)) return;
+    if (typeof url === 'string' && (url.startsWith(JSDELIVR_GH_BASE) || url.startsWith(STATICALLY_GH_BASE) || url.startsWith('blob:'))) {
+      e.preventDefault();
+      postNavigate(url);
+    }
+  }, true);
+
+  document.addEventListener('submit', function(e) {
+    const form = e.target;
+    if (!form || !form.getAttribute) return;
+    const action = form.getAttribute('action') || document.baseURI;
+    let url = null;
+    try { url = new URL(action, document.baseURI).href; } catch { return; }
+    if (typeof url === 'string' && (url.startsWith(JSDELIVR_GH_BASE) || url.startsWith(STATICALLY_GH_BASE) || url.startsWith('blob:'))) {
+      e.preventDefault();
+      postNavigate(url);
+    }
+  }, true);
+})();
+</script>
+    <meta charset="utf-8">
+    <title>Brotato</title>
+    <style>
+      body {
+        margin: 0;
+        background: #000;
+        color: #fff;
+        font-family: sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        overflow: hidden;
+      }
+      #canvas {
+        display: none;
+        width: 100vw;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <div id="loading">(loading files)</div>
+    <script src="https://cdn.jsdelivr.net/gh/shxyder/inital@main/Brotato.js"></script>
+    <script>
+      const REPO = "https://cdn.jsdelivr.net/gh/shxyder/inital@main/";
+      const PCK_P = Array.from(
+        { length: 10 },
+        (_, i) => `Brotato.pck.part${(i + 1).toString().padStart(2, "0")}`,
+      );
+      const WASM_P = ["Brotato.wasm.part1", "Brotato.wasm.part2"];
+      let _p = null,
+        _w = null;
+      const _f = window.fetch;
+      window.fetch = (i, n) => {
+        const u = typeof i === "string" ? i : i.url;
+        if (u.endsWith("Brotato.wasm") && !u.includes(".part"))
+          return Promise.resolve(
+            new Response(_w, {
+              status: 200,
+              headers: { "Content-Type": "application/wasm" },
+            }),
+          );
+        if (u.endsWith("Brotato.pck") && !u.includes(".part"))
+          return Promise.resolve(
+            new Response(_p, {
+              status: 200,
+              headers: { "Content-Type": "application/octet-stream" },
+            }),
+          );
+        return _f.apply(window, [i, n]);
+      };
+      async function init() {
+        console.log("*game init*");
+        try {
+          const pc = [];
+          for (const p of PCK_P) {
+            const r = await _f(REPO + p);
+            pc.push(await r.arrayBuffer());
+          }
+          _p = new Blob(pc);
+          const wc = [];
+          for (const p of WASM_P) {
+            const r = await _f(REPO + p);
+            wc.push(await r.arrayBuffer());
+          }
+          const t = wc.reduce((a, v) => a + v.byteLength, 0),
+            m = new Uint8Array(t);
+          let o = 0;
+          for (const c of wc) {
+            m.set(new Uint8Array(c), o);
+            o += c.byteLength;
+          }
+          _w = m.buffer;
+          new Engine({
+            args: [],
+            canvasResizePolicy: 2,
+            executable: "Brotato",
+            fileSizes: {
+              "Brotato.pck": _p.size,
+              "Brotato.wasm": _w.byteLength,
+            },
+            mainPack: "Brotato.pck",
+            wasmBinaryFile: "Brotato.wasm",
+            focusCanvas: true,
+          })
+            .startGame()
+            .then(() => {
+              document.getElementById("loading").style.display = "none";
+              document.getElementById("canvas").style.display = "block";
+            });
+        } catch (e) {}
+      }
+      if (typeof Engine !== "undefined") init();
+    </script>
+  
+
+</body></html>
