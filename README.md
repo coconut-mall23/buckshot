@@ -1,4 +1,4 @@
-ports from (https://github.com/genizy/web-port/tree/main/buckshot-roulette/)
+ports from https://github.com/genizy/web-port/tree/main/buckshot-roulette/ and github.com/Reeyuki/yukios-games/tree/main/html
 
 Use (https://www.w3schools.com/html/tryit.asp?filename=tryhtml_default_default) to run the code, does NOT save progress if site is reloaded.
 
